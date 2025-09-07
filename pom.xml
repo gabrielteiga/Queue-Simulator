@@ -4,7 +4,11 @@
   <groupId>com.metodosanaliticos.app</groupId>
   <artifactId>filas</artifactId>
   <packaging>jar</packaging>
-  <version>1.0-SNAPSHOT</version>
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+    </properties>
+    <version>1.0-SNAPSHOT</version>
   <name>filas</name>
   <url>http://maven.apache.org</url>
   <dependencies>
@@ -15,4 +19,23 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.1</version> <!-- ou outra versão disponível -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>java</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <mainClass>com.metodosanaliticos.App</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
