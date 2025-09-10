@@ -1,11 +1,12 @@
 package com.metodosanaliticos.app;
 
 public class Queue {
+    public int id;
     public int capacity;
     public int servers;
-    public int clientsInQueue = 0;
-    public double accTimesInQueue[];
-    public int id;
+    public int clientsInServer = 0;
+    public double[] accTimesInQueue;
+    public int losses = 0;
 
     public Queue(int id, int capacity, int servers) {
         this.id = id;
@@ -15,10 +16,15 @@ public class Queue {
     }
 
     public boolean isFull() {
-        return this.clientsInQueue >= this.capacity;
+        return this.clientsInServer >= this.capacity;
     }
 
     public boolean isEmpty() {
-        return this.clientsInQueue == 0;
+        return this.clientsInServer == 0;
+    }
+
+    public boolean hasAvailableServer() {
+        return this.clientsInServer <= this.servers;
     }
 }
+
