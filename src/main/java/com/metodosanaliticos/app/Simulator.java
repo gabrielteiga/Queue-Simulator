@@ -1,23 +1,42 @@
 package com.metodosanaliticos.app;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Simulator {
     private double globalTime = 0.0;
     private final int MAX_RANDONS = 100000;
 
     private Scheduler scheduler;
-    private Queue[] queues;
+    private List<Queue> queues;
     private NumberGenerator numberGenerator;
     private int randomsUsed = 0;
 
-    public Simulator(Queue[] queues, NumberGenerator numberGenerator) {
+    public Simulator(List<Queue> queues, NumberGenerator numberGenerator) {
         this.queues = queues;
         this.numberGenerator = numberGenerator;
         this.scheduler = new Scheduler();
     }
 
+    public Simulator(Queue[] queues, NumberGenerator numberGenerator) {
+        this.queues = new ArrayList<>();
+        for (Queue queue : queues) {
+            this.queues.add(queue);
+        }
+        this.numberGenerator = numberGenerator;
+        this.scheduler = new Scheduler();
+    }
+
     public void run() {
-        Event firstEvent = new Event(0, 1.5, EventType.CHEGADA);
-        scheduler.scheduleEvent(firstEvent);
+        for (int i = 0; i < queues.size(); i++) {
+            Queue queue = queues.get(i);
+            if (queue.arrivalMinTime > 0) {  
+                double firstArrivalTime = calculateTime(queue.arrivalMinTime, queue.arrivalMaxTime);
+                Event firstEvent = new Event(i, firstArrivalTime, EventType.CHEGADA, -1, i);
+                scheduler.scheduleEvent(firstEvent);
+            }
+        }
+        
         double lastTime = 0.0;
 
         while (randomsUsed < MAX_RANDONS && scheduler.hasEvents()) {
@@ -54,53 +73,87 @@ public class Simulator {
         return min + (max - min) * numberGenerator.nextRandom();
     }
 
+    /**
+     * Determina o destino do roteamento probabilístico baseado nas probabilidades definidas
+     * @param queue Fila de origem
+     * @return ID da fila de destino (-1 para exterior)
+     */
+    private int determineRoutingDestination(Queue queue) {
+        if (queue.routingDestinations == null || queue.routingProbabilities == null) {
+            return -1;
+        }
+
+        double randomValue = numberGenerator.nextRandom();
+        double cumulativeProbability = 0.0;
+
+        for (int i = 0; i < queue.routingProbabilities.length; i++) {
+            cumulativeProbability += queue.routingProbabilities[i];
+            if (randomValue <= cumulativeProbability) {
+                return queue.routingDestinations[i];
+            }
+        }
+
+        return queue.routingDestinations[queue.routingDestinations.length - 1];
+    }
+
+    /**
+     * Processa evento de chegada de cliente
+     * @param event Evento de chegada
+     */
     private void processChegada(Event event) {
-        Queue queue = queues[event.queueId];
+        Queue queue = queues.get(event.queueId);
         
-        double timeToNextChegada = this.globalTime + calculateTime(1, 4);
-        scheduler.scheduleEvent(new Event(0, timeToNextChegada, EventType.CHEGADA));
+        if (queue.arrivalMinTime > 0) {
+            double timeToNextChegada = this.globalTime + calculateTime(queue.arrivalMinTime, queue.arrivalMaxTime);
+            scheduler.scheduleEvent(new Event(queue.id, timeToNextChegada, EventType.CHEGADA, -1, queue.id));
+        }
         
         if (!queue.isFull()) {
             queue.clientsInServer++;
             if (queue.hasAvailableServer()) {
-                double timePassagem = this.globalTime + calculateTime(3, 4);
-                scheduler.scheduleEvent(new Event(1, timePassagem, EventType.PASSAGEM));
+                double serviceTime = calculateTime(queue.serviceMinTime, queue.serviceMaxTime);
+                scheduler.scheduleEvent(new Event(queue.id, this.globalTime + serviceTime, EventType.SAIDA, queue.id, -1));
             }
         } else {
             queue.losses++;
         }
     }
 
+    /**
+     * Processa evento de saída de cliente
+     * @param event Evento de saída
+     */
     private void processSaida(Event event) {
-        Queue queue = queues[event.queueId];
+        Queue queue = queues.get(event.queueId);
         queue.clientsInServer--;
 
+        int destinationId = determineRoutingDestination(queue);
+        
+        if (destinationId == -1) {
+        } else {
+            Queue destinationQueue = queues.get(destinationId);
+            if (!destinationQueue.isFull()) {
+                destinationQueue.clientsInServer++;
+                if (destinationQueue.hasAvailableServer()) {
+                    double serviceTime = calculateTime(destinationQueue.serviceMinTime, destinationQueue.serviceMaxTime);
+                    scheduler.scheduleEvent(new Event(destinationId, this.globalTime + serviceTime, EventType.SAIDA, destinationId, -1));
+                }
+            } else {
+                destinationQueue.losses++;
+            }
+        }
+
         if (queue.clientsInServer >= queue.servers) {
-            double timeToSaida = this.globalTime + calculateTime(2, 3);
-            scheduler.scheduleEvent(new Event(queue.id, timeToSaida, EventType.SAIDA));
+            double serviceTime = calculateTime(queue.serviceMinTime, queue.serviceMaxTime);
+            scheduler.scheduleEvent(new Event(queue.id, this.globalTime + serviceTime, EventType.SAIDA, queue.id, -1));
         }
     }
 
+    /**
+     * Processa evento de passagem (não utilizado)
+     * @param event Evento de passagem
+     */
     private void processPassagem(Event event) {
-        Queue queue1 = queues[0];
-        Queue queue2 = queues[1];
-
-        queue1.clientsInServer--;
-
-        if (queue1.clientsInServer >= queue1.servers) {
-            double timeToPassagem = this.globalTime + calculateTime(3, 4);
-            scheduler.scheduleEvent(new Event(1, timeToPassagem, EventType.PASSAGEM));
-        }
-
-        if (!queue2.isFull()) {
-            queue2.clientsInServer++;
-            if (queue2.hasAvailableServer()) {
-                double timeToSaida = this.globalTime + calculateTime(2, 3);
-                scheduler.scheduleEvent(new Event(1, timeToSaida, EventType.SAIDA));
-            }
-        } else {
-            queue2.losses++;
-        }
     }
 
     public void printResults() {
