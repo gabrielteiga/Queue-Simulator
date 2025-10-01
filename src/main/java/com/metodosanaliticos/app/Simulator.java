@@ -83,6 +83,7 @@ public class Simulator {
             return -1;
         }
 
+        this.randomsUsed++;
         double randomValue = numberGenerator.nextRandom();
         double cumulativeProbability = 0.0;
 
@@ -103,14 +104,14 @@ public class Simulator {
     private void processChegada(Event event) {
         Queue queue = queues.get(event.queueId);
         
-        if (queue.arrivalMinTime > 0) {
+        if (queue.arrivalMinTime > 0 && randomsUsed < MAX_RANDONS) {
             double timeToNextChegada = this.globalTime + calculateTime(queue.arrivalMinTime, queue.arrivalMaxTime);
             scheduler.scheduleEvent(new Event(queue.id, timeToNextChegada, EventType.CHEGADA, -1, queue.id));
         }
         
         if (!queue.isFull()) {
             queue.clientsInServer++;
-            if (queue.hasAvailableServer()) {
+            if (queue.hasAvailableServer() && randomsUsed < MAX_RANDONS) {
                 double serviceTime = calculateTime(queue.serviceMinTime, queue.serviceMaxTime);
                 scheduler.scheduleEvent(new Event(queue.id, this.globalTime + serviceTime, EventType.SAIDA, queue.id, -1));
             }
@@ -127,23 +128,24 @@ public class Simulator {
         Queue queue = queues.get(event.queueId);
         queue.clientsInServer--;
 
-        int destinationId = determineRoutingDestination(queue);
-        
-        if (destinationId == -1) {
-        } else {
-            Queue destinationQueue = queues.get(destinationId);
-            if (!destinationQueue.isFull()) {
-                destinationQueue.clientsInServer++;
-                if (destinationQueue.hasAvailableServer()) {
-                    double serviceTime = calculateTime(destinationQueue.serviceMinTime, destinationQueue.serviceMaxTime);
-                    scheduler.scheduleEvent(new Event(destinationId, this.globalTime + serviceTime, EventType.SAIDA, destinationId, -1));
+        if (randomsUsed < MAX_RANDONS) {
+            int destinationId = determineRoutingDestination(queue);
+            
+            if (destinationId != -1) {
+                Queue destinationQueue = queues.get(destinationId);
+                if (!destinationQueue.isFull()) {
+                    destinationQueue.clientsInServer++;
+                    if (destinationQueue.hasAvailableServer() && randomsUsed < MAX_RANDONS) {
+                        double serviceTime = calculateTime(destinationQueue.serviceMinTime, destinationQueue.serviceMaxTime);
+                        scheduler.scheduleEvent(new Event(destinationId, this.globalTime + serviceTime, EventType.SAIDA, destinationId, -1));
+                    }
+                } else {
+                    destinationQueue.losses++;
                 }
-            } else {
-                destinationQueue.losses++;
             }
         }
 
-        if (queue.clientsInServer >= queue.servers) {
+        if (queue.clientsInServer >= queue.servers && randomsUsed < MAX_RANDONS) {
             double serviceTime = calculateTime(queue.serviceMinTime, queue.serviceMaxTime);
             scheduler.scheduleEvent(new Event(queue.id, this.globalTime + serviceTime, EventType.SAIDA, queue.id, -1));
         }
